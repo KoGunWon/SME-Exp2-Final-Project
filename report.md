@@ -1,5 +1,4 @@
 # Geo-Explainable Residual Transformer (GERT) for Robust WiFi RTT Indoor Localization
-$$w_i = \frac{1}{\hat{d}_i + \epsilon}, \quad \hat{p}_{init} = \frac{\sum_{i=1}^{18} w_i \cdot p_{bs,i}}{\sum_{i=1}^{18} w_i}$$
 ## 1. 모티베이션 & 인트로
 ### 1.1 중간발표까지의 실험 결과 및 고찰 정리
 본 싫험의 전반기 과정에서는 WIFI RTT 기반의 실내 측위 시스템에서 발생하는 거리 측정 오차를 분석하고, 이를 극복하기 위한 다양한 통계 및 수학적 기법들을 검토하였다. 초기에는 단순 삼변측량(Trilateration)을 적용하였으나, 실내의 벽면 및 장애물로 인한 비가시거리(NLOS) 환경에서 신호 반사 및 감쇄 현상이 발생하여 측위 정확도가 크게 저하됨을 확인하였다.
@@ -28,9 +27,11 @@ $$w_i = \frac{1}{\hat{d}_i + \epsilon}, \quad \hat{p}_{init} = \frac{\sum_{i=1}^
 
 #### 2.2.2 물리적 베이스라인 수립: 가중 평균 초기 위치 추정
 딥러닝 모델이 좌표 평면 전체를 탐색하는 부담을 줄이기 위해, 측정 거리의 역수를 가중치($w_i$)로 사용하는 초기 위치($\hat{p}_{init}$)를 산출한다. 
+
 $$w_i = \frac{1}{\hat{d}_i + \epsilon}, \quad \hat{p}_{init} = \frac{\sum_{i=1}^{18} w_i \cdot p_{bs,i}}{\sum_{i=1}^{18} w_i}$$ 
+
 이 수식은 근거리 신호일수록 정확도가 높다는 물리적 자명성을 모델의 기초 판단 근거로 주입하는 역할을 한다.
-$$w_i = \frac{1}{\hat{d}_i + \epsilon}, \quad \hat{p}_{init} = \frac{\sum_{i=1}^{18} w_i \cdot p_{bs,i}}{\sum_{i=1}^{18} w_i}$$
+
 #### 2.2.3 기하학적 잔차(Geometric Residual) 피처 추출
 추정된 초기 위치를 기준으로 각 기지국까지의 물리적 유클리드 거리와 측정 거리 사이의 모순(잔차)을 계산한다.$$r_i = \hat{d}_i - \| \hat{p}_{init} - p_{bs,i} \|_2$$이 18차원의 잔차 벡터($r$)는 인공지능에게 어느 기지국 신호가 비가시거리(NLOS) 환경에서 반사되어 신뢰도가 낮은지 직접적인 기하학적 힌트를 제공한다.
 
