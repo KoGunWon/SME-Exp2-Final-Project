@@ -1,3 +1,4 @@
+$$w_i = \frac{1}{\hat{d}_i + \epsilon}, \quad \hat{p}_{init} = \frac{\sum_{i=1}^{18} w_i \cdot p_{bs,i}}{\sum_{i=1}^{18} w_i}$$
 # Geo-Explainable Residual Transformer (GERT) for Robust WiFi RTT Indoor Localization
 ## 1. 모티베이션 & 인트로
 ### 1.1 중간발표까지의 실험 결과 및 고찰 정리
