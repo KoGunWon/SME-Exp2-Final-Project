@@ -1,4 +1,5 @@
 # Geo-Explainable Residual Transformer (GERT) for Robust WiFi RTT Indoor Localization
+$$w_i = \frac{1}{\hat{d}_i + \epsilon}, \quad \hat{p}_{init} = \frac{\sum_{i=1}^{18} w_i \cdot p_{bs,i}}{\sum_{i=1}^{18} w_i}$$
 ## 1. 모티베이션 & 인트로
 ### 1.1 중간발표까지의 실험 결과 및 고찰 정리
 본 싫험의 전반기 과정에서는 WIFI RTT 기반의 실내 측위 시스템에서 발생하는 거리 측정 오차를 분석하고, 이를 극복하기 위한 다양한 통계 및 수학적 기법들을 검토하였다. 초기에는 단순 삼변측량(Trilateration)을 적용하였으나, 실내의 벽면 및 장애물로 인한 비가시거리(NLOS) 환경에서 신호 반사 및 감쇄 현상이 발생하여 측위 정확도가 크게 저하됨을 확인하였다.
