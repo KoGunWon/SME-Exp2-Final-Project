@@ -1,113 +1,248 @@
-# Geo-Explainable Residual Transformer (GERT) for Robust WiFi RTT Indoor Localization
+# Geo-Explainable Residual Transformer for Robust WiFi RTT Indoor Localization
+
 ## 1. 모티베이션 & 인트로
-### 1.1 중간발표까지의 실험 결과 및 고찰 정리
-본 실험의 전반기 과정에서는 WIFI RTT 기반의 실내 측위 시스템에서 발생하는 거리 측정 오차를 분석하고, 이를 극복하기 위한 다양한 통계 및 수학적 기법들을 검토하였다. 초기에는 단순 삼변측량(Trilateration)을 적용하였으나, 실내의 벽면 및 장애물로 인한 비가시거리(NLOS) 환경에서 신호 반사 및 감쇄 현상이 발생하여 측위 정확도가 크게 저하됨을 확인하였다.
 
-이를 해결하기 위해 MAD(Median Absolute Deviation) 기반의 필터링, DBSCAN 클러스터링, MCC(Maximum Correntropy Criterion) 등을 적용하여 이상치(Outlier)를 제거하고 오차를 보정하려 시도하였다. 이러한 접근은 일부 성능 향상을 보였으나, 18개의 기지국(Anchor) 신호에 일률적인 통계적 수식을 적용하는 방식은 복잡한 실내 환경의 비선형적인 오차 패턴과 각 센서의 기하학적 맥락을 온전히 반영하기 어렵다는 한계점에 도달하였다.
+WiFi RTT 기반 실내 측위는 사용자와 여러 기지국 사이의 거리 추정값을 이용하여 사용자 위치를 계산하는 range-based localization 문제이다. 이상적인 환경에서는 여러 기지국까지의 거리 원이 한 점 근처에서 만나는 삼변측량 구조를 기대할 수 있다. 그러나 실제 실내 환경에서는 벽, 장애물, 반사체, 사람의 이동 등으로 인해 NLOS와 multipath 오차가 발생한다. 이때 일부 기지국의 거리 추정값은 실제 거리보다 크게 왜곡되고, 단순 삼변측량이나 단순 평균 기반 위치 추정은 큰 오차를 갖게 된다.
 
-### 1.2 알고리즘 아이디어 도출
-위와 같은 고찰을 바탕으로, 데이터의 숨겨진 패턴을 파악하는 기계학습(Machine Learning)과 물리적 기하학 법칙을 결합하는 하이브리드 접근법을 고안하게 되었다. 하지만 본 프로젝트에서 학생에게 제공된 학습 데이터셋은 700개로 한정되어 있어, 단순한 딥러닝 모델(MLP 등)이 절대 좌표($x, y$)를 직접 예측하도록 학습시킬 경우 훈련 데이터에만 과도하게 맞춰지는 과적합(Overfitting) 문제가 필연적으로 발생할 것이라 판단했다. 이는 곧 채점에 사용될 300개의 숨겨진 데이터(Hidden Test Set)에서 성능이 급락하는 결과로 이어지게 된다.
+중간발표 전후의 실험에서는 MAD 기반 이상치 처리, DBSCAN 클러스터링, MCC 기반 강건 추정 등 통계적 방법을 우선 검토하였다. 이러한 방법은 튀는 거리값을 일부 완화할 수 있었지만, 18개 기지국의 상대적 배치와 특정 기지국 조합에서 나타나는 비선형 오차 패턴을 충분히 반영하기 어려웠다. 특히 모든 기지국에 같은 통계 기준을 적용하면, 어떤 기지국이 실제로 위치 추정에 유리한지 또는 어떤 기지국이 NLOS 영향을 강하게 받았는지까지 판단하기 어렵다.
 
-이러한 과적합과 데이터 부족 문제를 동시에 해결하기 위해 두 가지 핵심 전략을 도출하였다.첫째, 모델이 바닥부터 좌표를 찾는 대신, 기하학적으로 도출된 '초기 추정 위치'에서 발생하는 물리적 모순, 즉 '기하학적 잔차(Geometric Residual)'만을 예측하게 하여 모델의 출력값이 물리적 타당성을 벗어나지 않도록 강제한다.둘째, 자연어 처리(NLP) 분야의 Transformer 구조를 차용하여, 18개의 기지국 신호를 언어의 토큰(Token)처럼 시퀀스로 취급한다. 이를 통해 인공지능이 Self-Attention 메커니즘을 바탕으로 신뢰할 수 없는 NLOS 신호를 스스로 억제하고 유효한 신호에만 가중치를 두도록 유도한다.
+이 한계에서 출발하여 본 프로젝트에서는 순수 통계 필터 또는 순수 딥러닝 대신, 기하학 기반 초기 위치 추정과 머신러닝 기반 residual 보정을 결합한 GERT, Geo-Explainable Residual Transformer를 설계하였다. 핵심 아이디어는 인공지능이 사용자 좌표를 처음부터 직접 예측하게 하지 않는 것이다. 먼저 거리값으로 물리적으로 그럴듯한 초기 위치를 만든 뒤, 그 초기 위치가 실제 위치로 이동하기 위해 필요한 보정량만 학습하게 한다. 이렇게 하면 모델이 2차원 좌표 공간 전체를 외우는 부담이 줄어들고, 제한된 데이터 환경에서도 일반화 가능성이 높아진다.
 
-### 1.3 알고리즘의 High-level 소개: GERT
-본 프로젝트에서 제안하는 최종 알고리즘은 GERT(Geo-Explainable Residual Transformer)이다. GERT는 삼변측량의 물리적 제약 조건(Geometric Constraints)과 Transformer의 패턴 인식 및 어텐션 능력을 결합한 모델이다.
+본 프로젝트에서 사용한 데이터와 학습 설정은 다음과 같다.
 
-이 알고리즘은 먼저 가중 평균을 통해 대략적인 초기 위치를 추정하고, 18개 기지국 각각에 대해 측정된 거리와 추정 위치 기반 물리적 거리 간의 차이인 '잔차(Residual)' 피처를 생성한다. 이후 단일 층(1-Layer)으로 경량화된 Compact Transformer가 이 36차원의 피처(거리 18개, 잔차 18개)를 분석하여, 최종적으로 초기 위치를 보정할 미세 오차($\Delta x, \Delta y$)를 출력한다. 
+| 항목 | 값 |
+|---|---:|
+| 전체 제공 샘플 수 | 700 |
+| 기지국 수 | 18 |
+| 거리 입력 행렬 | 18 × 700 |
+| 기지국 좌표 행렬 | 2 × 18 |
+| 정답 위치 행렬 | 2 × 700 |
+| 학습 샘플 수 | 595 |
+| 검증 샘플 수 | 105 |
+| 검증 비율 | 0.15 |
+| 최종 제출 모델 파일 | model.pt |
 
-결과적으로 GERT는 적은 데이터 환경에서의 과적합을 효과적으로 방지함과 동시에, 평가 환경인 10분 실행 제한을 행렬 기반 병렬 연산으로 여유롭게 통과하는 고효율·고성능 측위 알고리즘이다.
+전체 알고리즘은 먼저 MAD 기반 clipping으로 극단적인 거리값을 완화하고, inverse-distance weighted centroid로 초기 위치를 계산한다. 이후 각 기지국에서 측정된 거리와 초기 위치 기준 물리적 거리의 차이를 residual feature로 만들고, 18개 기지국을 Transformer의 token으로 취급하여 보정 벡터를 예측한다. 최종 위치는 초기 위치에 이 보정 벡터를 더해 계산된다.
 
 ## 2. 알고리즘 설명
-### 2.1 GERT 알고리즘 프레임워키 및 핵심 철학
-본 프로젝트에서 제안하는 GERT(Geo-Explainable Residual Transformer) 알고리즘은 결정론적 기하학 기법과 확률론적 인공지능 모델을 결합한 하이브리드 구조를 가진다. 특히 선행 연구들의 한계를 본 실험 환경(700개의 제한된 데이터, 18개 앵커 시스템)에 맞춰 창의적으로 개선한 점이 핵심이다.
 
-### 2.2 단계별 상세 메커니즘
-#### 2.2.1통계적 노이즈 제거: MAD 기반 소프트 클리핑
-실내 환경의 다중경로(Multipath) 오차로 인해 발생하는 튀는 측정값($d_{hat}$)을 정제하기 위해 MAD(Median Absolute Deviation)를 적용한다. Modified Z-score가 3.5를 초과하는 이상치는 단순 제거하지 않고 정상 범위의 경곗값으로 치환(Clipping)한다. 이는 데이터를 삭제할 경우 발생할 수 있는 행렬 연산의 불연속성을 방지하고 모델의 학습 안정성을 확보하기 위함이다.
+### 2.1 MAD 기반 거리값 정제
 
-#### 2.2.2 물리적 베이스라인 수립: 가중 평균 초기 위치 추정
-딥러닝 모델이 좌표 평면 전체를 탐색하는 부담을 줄이기 위해, 측정 거리의 역수를 가중치($w_i$)로 사용하는 초기 위치($\hat{p}_{init}$)를 산출한다. 
+실내 RTT 거리값은 NLOS와 multipath 때문에 일부 기지국에서 비정상적으로 큰 값을 가질 수 있다. 이를 완화하기 위해 각 기지국별 거리 분포에 대해 median과 MAD를 계산하고, Modified Z-score가 기준값을 초과하는 값을 정상 범위의 최솟값과 최댓값 사이로 clipping하였다. 본 프로젝트에서 사용한 기준값은 다음과 같다.
 
-$$w_i = \frac{1}{\hat{d}_i + \epsilon}, \quad \hat{p}_{init} = \frac{\sum_{i=1}^{18} w_i \cdot p_{bs,i}}{\sum_{i=1}^{18} w_i}$$ 
+| 항목 | 값 |
+|---|---:|
+| Modified Z-score threshold | 3.5 |
+| clipping 기준 | 기지국별 정상 거리 범위 |
+| 목적 | 극단적 거리값 완화 및 입력 shape 유지 |
 
-이 수식은 근거리 신호일수록 정확도가 높다는 물리적 자명성을 모델의 기초 판단 근거로 주입하는 역할을 한다.
+MAD와 Modified Z-score는 다음과 같이 정의된다.
 
-#### 2.2.3 기하학적 잔차(Geometric Residual) 피처 추출
-추정된 초기 위치를 기준으로 각 기지국까지의 물리적 유클리드 거리와 측정 거리 사이의 모순(잔차)을 계산한다.
+$$
+\text{MAD}_i = \text{median}\left(|d_i - \text{median}(d_i)|\right)
+$$
 
-$$r_i = \hat{d}_i - \| \hat{p}_{init} - p_{bs,i} \|_2$$
+$$
+z_i = 0.6745 \cdot \frac{d_i - \text{median}(d_i)}{\text{MAD}_i}
+$$
 
-이 18차원의 잔차 벡터($r$)는 인공지능에게 어느 기지국 신호가 비가시거리(NLOS) 환경에서 반사되어 신뢰도가 낮은지 직접적인 기하학적 힌트를 제공한다.
+여기서 i는 기지국 인덱스를 의미한다. 이상치를 완전히 삭제하지 않고 clipping한 이유는 모든 사용자에 대해 18개 기지국 입력을 유지해야 Transformer 입력 구조가 안정적으로 유지되기 때문이다.
 
-#### 2.2.4 Compact Residual Transformer 아키텍처
-추출된 [측정 거리, 기하 잔차]의 쌍을 (18, 2) 형태의 시퀀스 데이터로 변환하여 Transformer 인코더에 입력한다. 모델은 Self-Attention 메커니즘을 통해 앵커 간의 상관관계를 분석하며, 최종적으로 초기 위치를 보정할 2차원 오차 벡터($\Delta x, \Delta y$)를 출력한다.
+### 2.2 거리 역수 가중 중심 기반 초기 위치
 
-$$\hat{p}_{final} = \hat{p}_{init} + [\Delta x, \Delta y]$$
+본 알고리즘은 엄밀한 비선형 least-squares 삼변측량을 직접 푸는 방식은 아니다. 대신 삼변측량의 핵심인 range measurement 정보를 활용하되, 계산 안정성과 속도를 위해 inverse-distance weighted centroid를 초기 위치 추정기로 사용한다. 측정 거리가 짧은 기지국일수록 사용자와 가까울 가능성이 높다고 보고 더 큰 가중치를 부여한다.
 
-### 2.3 선행 연구와의 차별성 및 고도화 전략
-#### 2.3.1 Locaris 논문(Transformer 구조)과의 차별점
-선행 연구인 Locaris[1]는 거대한 LLM 기반의 Decoder-only 구조를 제안하여 범용성을 강조하였다. 하지만 본 알고리즘은 700개라는 극소규모 데이터셋에서의 과적합(Overfitting) 방지를 위해 단 1층의 인코더와 32차원의 은닉층만을 사용하는 'Compact Transformer' 구조로 경량화하였다. 이를 통해 불필요한 파라미터를 제거하고 18개 앵커 간의 로컬 상관관계 학습에만 집중하도록 최적화한 전략적 차이가 있다.
+$$
+\tilde{w}_i = \frac{1}{\hat{d}_i + \epsilon}
+$$
 
-#### 2.3.2 PINN 논문(물리 법칙 융합)과의 차별점
-일반적인 PINN(Physics-Informed Neural Networks)[2] 모델들은 물리 방정식을 손실 함수(Loss Function)에 추가하여 간접적으로 학습을 가이드한다. 반면, GERT 알고리즘은 물리적 모순을 나타내는 기하학적 잔차를 입력 피처(Input Feature) 자체로 직접 주입하는 방식을 택했다. 이는 10분이라는 엄격한 실행 시간 제한을 고려한 설계로, 복잡한 미분 연산 없이도 모델이 물리적 제약 조건을 즉각적으로 인식하게 하여 추론 속도와 정확도를 동시에 잡은 고도화된 접근법이다.
+$$
+w_i = \frac{\tilde{w}_i}{\sum_{j=1}^{18}\tilde{w}_j}
+$$
 
-#### 2.3.3 XAI 논문(설명 가능성)과의 차별점
-기존의 설명 가능한 측위 연구[3]는 복잡한 모델의 결과를 사후 분석(Post-hoc)하는 방식을 사용한다. GERT는 Self-Attention 메커니즘을 추론의 핵심으로 삼아, 모델이 어떤 앵커를 신뢰하여 보정치를 산출했는지 'Attention Weight'를 통해 실시간으로 설명할 수 있는 구조적 설명 가능성을 내포하고 있다. 이는 단순한 수치 예측을 넘어 측위 결과의 기하학적 타당성을 스스로 증명한다는 점에서 학술적 차별성을 가진다.
+$$
+\hat{p}_{init} = \sum_{i=1}^{18}w_i p_{bs,i}
+$$
+
+이 방식은 모든 사용자에 대해 행렬 연산으로 빠르게 계산할 수 있고, 딥러닝 모델에 물리적으로 그럴듯한 출발점을 제공한다. 따라서 본 알고리즘은 “range-based localization 원리에 기반한 초기 추정 후 residual correction” 구조로 해석하는 것이 가장 정확하다.
+
+### 2.3 기하학적 residual feature
+
+초기 위치가 계산되면 각 기지국에 대해 측정 거리와 초기 위치 기준 물리적 거리의 차이를 계산한다. 이 값이 본 프로젝트의 핵심 feature인 geometric residual이다.
+
+$$
+r_i = \hat{d}_i - \left\|\hat{p}_{init} - p_{bs,i}\right\|_2
+$$
+
+이 residual은 초기 위치가 실제 거리 방정식과 얼마나 모순되는지 나타낸다. NLOS 영향을 받은 기지국은 실제 거리보다 긴 측정값을 만들 가능성이 크므로, 해당 기지국의 residual 패턴이 다른 기지국과 다르게 나타날 수 있다. 따라서 모델 입력은 단순한 거리 18개가 아니라, 각 기지국별 거리와 residual의 쌍으로 구성된다.
+
+| 입력 구성 | Shape | 의미 |
+|---|---:|---|
+| 거리 feature | 18 × 1 | 기지국별 RTT 기반 거리 추정값 |
+| residual feature | 18 × 1 | 측정 거리와 초기 위치 기준 물리 거리의 차이 |
+| Transformer 입력 | 18 × 2 | 기지국 18개를 token으로 하는 sequence |
+
+### 2.4 Compact Residual Transformer
+
+18개 기지국을 각각 하나의 token으로 보고, 각 token에 거리와 residual 두 feature를 부여한다. Transformer Encoder는 이 token sequence를 받아 기지국 간 상관관계를 학습하고, 최종적으로 초기 위치에 더할 2차원 보정 벡터를 출력한다.
+
+$$
+\Delta \hat{p} = f_\theta(X)
+$$
+
+$$
+\hat{p}_{final} = \hat{p}_{init} + \Delta \hat{p}
+$$
+
+모델이 직접 예측하는 값은 절대 좌표가 아니라 보정량이다. 학습 label도 실제 위치와 초기 위치의 차이로 정의하였다.
+
+$$
+y = p_{true} - \hat{p}_{init}
+$$
+
+$$
+\mathcal{L}(\theta)=\frac{1}{N}\sum_{k=1}^{N}\left\|f_\theta(X_k)-(p_{true,k}-\hat{p}_{init,k})\right\|_2^2
+$$
+
+모델 구조는 데이터 수가 제한된 점을 고려하여 작게 설계하였다.
+
+| 구성 요소 | 설정 |
+|---|---:|
+| 입력 token 수 | 18 |
+| token feature 수 | 2 |
+| embedding dimension | 32 |
+| attention head 수 | 4 |
+| Transformer Encoder layer 수 | 1 |
+| feedforward dimension | 64 |
+| encoder dropout | 0.2 |
+| output head dropout | 0.1 |
+| 학습 파라미터 수 | 9,778 |
+
+### 2.5 관련 연구와의 차별점
+
+WiFi, UWB, RTT 기반 실내 측위 연구들은 일반적으로 거리 기반 삼변측량, probabilistic localization, fingerprinting, robust estimation을 사용한다. 본 프로젝트는 이 중 range-based localization의 해석 가능성을 유지하면서도, residual을 학습 feature로 주입한다는 점에서 차이가 있다. Liu 등의 indoor positioning survey는 무선 실내 측위 기술 전반을 정리하지만, 본 프로젝트처럼 제한된 데이터에서 기하학적 residual을 Transformer 입력으로 구성하는 구조를 직접 제안하지는 않는다.
+
+UWB localization 연구에서는 거리 측정 오차와 NLOS 문제가 중요한 요소로 다뤄진다. 본 프로젝트도 같은 문제의식을 공유하지만, WLS나 확률 필터만으로 오차를 줄이는 대신 초기 위치의 기하학적 모순을 머신러닝 입력으로 사용한다.
+
+Transformer 연구는 원래 sequence token 사이의 관계를 학습하기 위한 구조를 제안하였다. 본 프로젝트에서는 문장 token 대신 18개 기지국을 token으로 간주한다. 단, 대규모 Transformer를 사용하지 않고 1-layer compact encoder만 사용하여 700개 데이터 환경에 맞게 축소하였다.
+
+Physics-informed neural network 계열 연구는 보통 물리 방정식을 손실 함수에 추가한다. 본 프로젝트는 물리 방정식을 손실에 직접 넣기보다, 측정 거리와 초기 위치 기반 거리의 차이를 residual feature로 입력에 직접 주입한다. 이 방식은 구현이 간단하고, 제출 환경의 실행 시간 제한 안에서 안정적으로 동작한다.
 
 ## 3. Agent AI 활용 방안
-### 3.1 활용한 Agent AI 및 목적
-본 프로젝트에서는 GERT 알고리즘의 기획부터 구현까지의 전 과정에서 Gemini를 주된 보조 도구(Pair-programming Assistant)로 활용하였다. 핵심적인 수학적 논리와 아키텍처 설계는 본인이 주도하였으며, Gemini는 설계된 논리를 실제 파이썬 및 PyTorch 코드로 번역하고 연산 속도를 최적화하는 구현(Implementation) 수준의 보조 역할을 수행하도록 철저히 역할을 분리하여 활용하였다.
 
-### 3.2 본인의 주도적 역할: 도메인 로직 및 아키텍처 설계
-측위 알고리즘의 뼈대가 되는 물리적, 수학적 통찰은 전적으로 본인의 분석 및 기획을 통해 도출되었다. 구체적인 역할은 다음과 같다.
+본 프로젝트에서는 Agent AI를 알고리즘 설계의 대체자가 아니라 구현 보조 및 검토 도구로 사용하였다. 핵심 알고리즘의 방향, 즉 “거리 기반 초기 위치를 먼저 계산하고, 딥러닝은 위치 자체가 아니라 residual 보정량만 학습하게 한다”는 판단은 WiFi RTT 데이터의 물리적 특성과 과적합 위험을 고려하여 직접 결정하였다.
 
-첫째, 700개의 제한된 데이터 환경에서 딥러닝을 적용할 때 필연적으로 발생하는 과적합(Overfitting) 문제를 선제적으로 인지하였다. 이를 방지하기 위해 딥러닝이 좌표를 직접 예측하는 구조를 배제하고, 삼변측량 기반의 가중 평균 위치에서 파생되는 '기하학적 잔차(Geometric Residual)' 기반의 보정 프레임워크를 직접 설계하였다.
+본인이 주도한 부분은 다음과 같다.
 
-둘째, 최신 측위 및 XAI 연구를 참고하여 18개의 기지국을 시퀀스 토큰으로 취급하는 Transformer 구조의 도입을 기획하였다. 더 나아가, 제한된 데이터셋에 맞게 모델의 파라미터를 최소화하고자 1-Layer 기반의 Compact 아키텍처 축소 전략과 데이터 분할을 통한 검증 세트 최적화(Early Stopping) 전략을 주도적으로 수립하였다.
+| 구분 | 본인이 수행한 역할 |
+|---|---|
+| 문제 정의 | WiFi RTT 실내 측위에서 NLOS와 multipath가 핵심 오차 요인임을 분석 |
+| 알고리즘 구조 | 좌표 직접 예측 대신 residual regression 구조 선택 |
+| feature 설계 | 거리와 기하학적 residual을 함께 사용하는 입력 설계 |
+| 모델 선택 | 18개 기지국을 token으로 보는 Compact Transformer 구조 선택 |
+| 평가 해석 | validation 성능과 all-data sanity check를 구분하여 해석 |
+| 제출 구성 | main.py, train.py, model.pt, report.md의 역할 정리 |
 
-### 3.3 Gemini의 보조적 활용 방안: 연산 최적화 및 디버깅
-본인이 설계한 고수준의 도메인 지식을 코드로 실체화하는 과정에서 발생한 기술적 병목을 해결하기 위해 Gemini를 다음과 같이 활용하였다.
+Agent AI는 다음 업무에 보조적으로 활용하였다.
 
-첫째, 채점 환경의 엄격한 '10분 실행 시간 제한'을 통과하기 위해 알고리즘 고속화를 지시하였다. 본인이 수학적 수식으로 전개한 잔차 추출 및 보정 과정을 단일 반복문(For-loop)이 아닌, Numpy 기반의 행렬 및 벡터 연산(Vectorization) 코드로 변환해 줄 것을 Gemini에게 요청하여 추론 연산 효율을 극대화했다.
+| 구분 | Agent AI 활용 내용 |
+|---|---|
+| 코드 구조화 | PyTorch 기반 Compact Residual Transformer 구현 보조 |
+| 디버깅 | d_hat, BS_positions, p의 shape 불일치 문제 점검 |
+| 학습 코드 점검 | train.py와 main.py의 전처리 일치성 확인 |
+| 모델 저장 | model.pt 저장 및 로딩 흐름 검토 |
+| 결과 정리 | metric 계산 결과를 markdown 표로 정리 |
+| 보고서 점검 | 과장된 표현 제거 및 구현과 설명의 일치성 검토 |
 
-둘째, PyTorch 프레임워크를 활용해 모델을 구현하고 학습 모델 가중치(model.pt)를 추출하는 과정에서 발생하는 텐서 차원(Shape) 불일치 문제나, 최종 제출용 규격(sio 로드 및 2xN 반환 등)을 맞출 때 발생하는 에러 로그를 분석받고 문법적 디버깅 자문을 받는 용도로 활용하였다.
+Agent AI가 제안한 내용은 그대로 채택하지 않고, 실제 코드 실행 결과와 제출 규격에 맞는지 확인한 뒤 반영하였다. 특히 report.md와 train.py가 참신성 및 일치성 평가의 중심이라는 점을 고려하여, 보고서 설명이 실제 학습 코드와 어긋나지 않도록 수정하였다.
 
-# 4. 결과 도출 & 디스커션
-## 4.1 자체 성능 평가 결과
-본 알고리즘의 객관적인 성능을 검증하기 위해, 제공된 700개의 데이터를 학습(85%) 및 검증(15%) 세트로 분할하여 평가를 진행하였다. 인공지능 보정 전의 기하학적 초기 위치(Baseline)와 GERT 알고리즘을 통한 최종 보정 위치를 비교한 결과는 다음과 같다.
+## 4. 결과 도출 & 디스커션
 
-| 평가 지표 (Validation Set 기준) | Baseline (가중 평균 초기 위치) | GERT (제안 알고리즘) | 개선율 (%) |
-|:---|:---:|:---:|:---:|
-| 평균 오차 (Mean Error, m) | 23.34 | 9.68 | 58.5% |
-| RMSE (Root Mean Square Error, m) | 25.81 | 11.17 | 56.7% |
-| 최대 오차 (Max Error, m) | 56.38 | 33.14 | 41.2% |
+### 4.1 자체 평가 방식
 
-결과 분석에 따르면, GERT 알고리즘은 단순 기하학적 추정 방식 대비 RMSE 기준 56.7%의 괄목할 만한 오차 감소를 달성하였다. 특히 최대 오차가 56.38m에서 33.14m로 크게 줄어든 점은, 본 모델의 Self-Attention 메커니즘이 비정상적인 NLOS 신호(Outlier)를 효과적으로 식별하고 억제했음을 시사한다.
+전체 700개 제공 데이터를 무작위로 섞은 뒤, seed 42 기준으로 train set과 validation set을 분리하였다. 모델은 train set만 사용해 학습하고, validation set은 성능 평가에만 사용하였다. 최종 제출용 model.pt는 검증 실험 이후 전체 700개 샘플을 이용해 다시 학습하였지만, 전체 데이터로 재학습한 뒤 같은 데이터에서 계산한 성능은 일반화 성능으로 주장하지 않았다.
 
-## 4.2 사고와 구현의 적합성 고찰
-본 프로젝트의 핵심 사고는 "데이터가 부족한 환경에서 인공지능에게 모든 판단을 맡기지 않는다"는 것이다. 700개의 샘플로 2차원 평면의 모든 좌표 패턴을 학습하는 것은 불가능에 가깝다. 이에 따라 물리적 기초를 삼변측량(가중 평균)으로 다지고, 인공지능은 그 위에서 발생하는 기하학적 모순(Residual)만을 포착하여 미세 조정하도록 구현하였다. 이러한 '잔차 보정 프레임워크'는 모델이 학습 데이터의 노이즈를 암기하는 대신, 물리 법칙에서 벗어난 신호(NLOS)를 식별하는 일반화된 규칙을 배우게 함으로써 구현의 적합성을 확보하였다.
+| 평가 설정 | 값 |
+|---|---:|
+| seed | 42 |
+| train samples | 595 |
+| validation samples | 105 |
+| epochs | 200 |
+| batch size | 32 |
+| optimizer | AdamW |
+| learning rate | 0.005 |
+| weight decay | 0.0001 |
+| best validation MSE | 54.60 |
 
-## 4.3 비교 대상 선정의 공정성 (Fairness)
-일반적으로 인공지능 알고리즘을 단순 삼각측량과 비교하는 것은 '계산 능력'의 차이로 인해 불공정(Unfair)할 수 있다. 이를 방지하기 위해 본 보고서에서는 대조군(Baseline)을 본 알고리즘의 1단계 결과물인 '물리 기반 가중 평균 위치'로 설정하였다. 즉, 동일한 전처리와 동일한 기하학적 출발점에서 시작하되, "인공지능의 보정 로직이 추가되었을 때 실제 물리적 오차를 얼마나 더 정교하게 깎아낼 수 있는가"를 측정하였다. 이는 알고리즘의 성능 향상이 단순히 모델의 복잡도 때문이 아니라, 제안한 기하 잔차 피처와 Transformer의 어텐션 메커니즘이 실질적인 기여를 했음을 증명하는 가장 공정한 비교 방식이다.
+여기서 epochs는 학습 샘플 수를 뜻하지 않는다. epochs 200은 train set 전체를 200회 반복하여 학습했다는 의미이다. 과적합을 줄이기 위해 validation loss가 가장 낮은 checkpoint를 기준으로 검증 성능을 평가하였다.
 
-## 4.4 자체 평가 방식의 Fairness
-자체 평가의 신뢰성을 높이기 위해 두 가지 장치를 마련하였다. 
+### 4.2 Validation 결과
 
-첫째, 700개의 데이터를 무작위로 섞은 뒤 15%의 검증 데이터를 완전히 분리하여 학습 과정에서 단 한 번도 참조하지 않게 하였다. 이는 조교가 보유한 300개의 숨겨진 데이터(Hidden Test Set) 환경을 가장 유사하게 모사한 것이다. 
+Baseline은 AI 보정 전의 inverse-distance weighted centroid이다. GERT는 같은 MAD clipping과 같은 초기 위치를 사용하되, 추가로 distance와 residual feature를 Transformer에 입력하여 보정 벡터를 예측한다. 따라서 비교는 “기하학적 초기 추정만 사용한 경우”와 “동일한 초기 추정에 머신러닝 residual 보정을 추가한 경우”의 비교이다.
 
-둘째, 학습 중 훈련 손실(Train Loss)이 아닌 검증 손실(Val Loss)이 가장 낮았던 시점의 모델 가중치만을 저장하는 조기 종료(Early Stopping) 전략을 사용하였다. 이를 통해 '연습 문제는 잘 풀지만 실전에서 틀리는' 과적합 현상을 배제하고 평가의 객관성을 유지하였다.
+| 평가 지표 | Baseline | GERT | 개선율 |
+|---|---:|---:|---:|
+| Mean error | 23.86 m | 8.89 m | 62.8% |
+| Median error | 23.61 m | 7.65 m | 67.6% |
+| RMSE | 25.54 m | 10.45 m | 59.1% |
+| P90 error | 35.58 m | 15.65 m | 56.0% |
+| Max error | 43.84 m | 27.33 m | 37.7% |
 
-## 4.5 알고리즘의 장점 및 단점
-장점: 물리적 제약 조건을 피처로 사용하므로 데이터가 적어도 물리적으로 타당한 결과를 보장한다. 또한, 행렬 연산 기반의 Batch 추론 구조를 채택하여 300명의 위치를 0.1초 내외로 계산할 수 있어 10분 실행 제한 규정을 압도적으로 충족한다.
+Mean, Median, RMSE, P90 error가 모두 감소했으므로, 특정 샘플에서만 우연히 좋아진 결과라기보다 오차 분포 전체가 낮아진 것으로 해석할 수 있다. Max error의 개선율은 평균 오차나 P90보다 작다. 이는 극단적으로 왜곡된 일부 위치에서는 초기 위치 자체가 크게 틀어져 residual feature도 불안정해질 수 있음을 의미한다.
 
-단점: 초기 추정 위치($\hat{p}_{init}$)가 실제 위치와 너무 멀리 떨어져 잔차가 비정상적으로 왜곡될 경우, Transformer의 보정 성능이 제한될 수 있다. 이는 초기 가중치 설정 방식의 고도화를 통해 해결해야 할 과제이다.
+### 4.3 학습 과정 해석
 
-## 4.6 향후 과제 (Future Work)
-현재 GERT 알고리즘은 각 사용자의 데이터를 독립적인 점(Point)으로 처리한다. 만약 연속적인 이동 궤적 데이터가 주어진다면, Transformer의 시퀀스 처리 능력을 시간축으로 확장하여 칼만 필터(Kalman Filter)와 같은 시계열 보정 로직을 모델 내부에 통합함으로써 동적 환경에서도 강건한 측위 시스템을 구축할 수 있을 것으로 기대된다.
+학습 과정에서 train MSE는 전반적으로 감소하였다. validation MSE는 완전히 단조롭게 감소하지 않았는데, 이는 데이터 수가 제한되어 있고 validation set도 상대적으로 작기 때문이다. 이 때문에 마지막 epoch의 모델을 무조건 채택하지 않고, validation loss 기준 best checkpoint를 저장하는 방식이 더 타당하다.
 
-# 5. Reference
-[1] Emanuele Pagliari, Luca Davoli, Gianluigi Ferrari, et al., "Indoor Localization using Compact, Telemetry-Agnostic, Transfer-Learning Enabled Decoder-Only Transformer," (Scheduled for publication in 2025/2026).
+| Epoch | Train MSE | Validation MSE |
+|---:|---:|---:|
+| 1 | 334.25 | 327.27 |
+| 40 | 116.82 | 117.94 |
+| 80 | 94.12 | 100.16 |
+| 120 | 64.98 | 71.38 |
+| 160 | 63.00 | 63.93 |
+| 200 | 58.07 | 64.94 |
 
-[2] "Integrating Physics-Informed Neural Networks (PINNs) for Enhanced Indoor Localization," (Presented at ICLR 2025 and multiple venues).
+### 4.4 최종 제출 모델 sanity check
 
-[3] S. Roy and C. Chowdhury, "An explainable hybrid deep learning architecture for WiFi-based indoor localization," Future Generation Computer Systems, Vol. 150, pp. 142-155, 2024. 
+최종 제출용 model.pt는 검증 실험 이후 전체 700개 샘플로 재학습하여 생성하였다. 아래 결과는 같은 700개 학습 데이터에서 다시 평가한 값이므로 hidden test 성능이나 일반화 성능으로 해석하지 않는다. 이 표는 최종 저장된 모델이 학습 데이터에 대해 residual 보정을 정상적으로 수행하는지 확인하기 위한 sanity check이다.
+
+| 평가 지표 | All-data Baseline | All-data GERT final | 개선율 |
+|---|---:|---:|---:|
+| Mean error | 23.35 m | 7.06 m | 69.8% |
+| Median error | 22.74 m | 6.16 m | 72.9% |
+| RMSE | 25.82 m | 8.55 m | 66.9% |
+| P90 error | 38.18 m | 12.42 m | 67.5% |
+| Max error | 56.38 m | 33.86 m | 39.9% |
+
+### 4.5 사고와 구현의 적합성
+
+본 프로젝트의 핵심 사고는 데이터가 부족한 환경에서 인공지능에게 위치 전체를 맡기지 않는 것이다. 제공 데이터가 제한적이므로, 좌표를 직접 예측하는 큰 모델은 학습 데이터의 공간 분포를 외우는 방향으로 과적합될 위험이 크다. 따라서 본 알고리즘은 물리 기반 초기 위치를 먼저 만들고, 모델은 그 초기 위치에서 실제 위치까지의 보정량만 학습하도록 제한하였다.
+
+이 구현은 WiFi RTT 측위 문제의 특성과도 맞다. 측정 거리 자체는 물리적 의미를 갖고, 초기 위치는 부정확하더라도 대략적인 기하학 정보를 제공한다. 여기에 residual feature를 추가하면, 모델은 단순히 거리 크기만 보는 것이 아니라 거리 방정식의 모순을 관찰할 수 있다. 이 때문에 제한된 데이터에서도 baseline 대비 유의미한 오차 감소가 나타난 것으로 판단한다.
+
+### 4.6 baseline 비교의 공정성
+
+딥러닝 모델을 매우 단순한 삼각측량 또는 임의의 약한 알고리즘과 비교하면 공정하지 않을 수 있다. 본 보고서의 baseline은 제안 알고리즘의 실제 첫 단계인 inverse-distance weighted centroid이다. 즉, baseline과 GERT는 같은 입력 거리, 같은 MAD clipping, 같은 초기 위치 계산을 공유한다. 차이는 Transformer residual 보정기의 유무이다.
+
+따라서 성능 개선은 단순히 전처리 효과 때문이 아니라, residual feature와 학습 기반 보정기가 추가되었을 때의 효과로 해석할 수 있다. 또한 validation set은 학습에 사용하지 않았으므로, 자체 평가는 hidden test set을 완전히 대체하지는 못하지만 과적합 여부를 확인하기 위한 최소한의 공정성을 갖는다.
+
+### 4.7 장점, 한계, 향후 개선
+
+본 알고리즘의 장점은 물리 기반 구조와 머신러닝을 결합했다는 점이다. 초기 위치를 통해 해석 가능한 출발점을 만들고, residual regression으로 보정량만 학습하기 때문에 좌표 직접 예측보다 과적합 위험을 낮출 수 있다. 또한 모델 크기를 9,778개 파라미터로 제한하여 10분 실행 제한에 대해 안정적인 추론이 가능하다.
+
+한계도 존재한다. 첫째, 초기 weighted centroid가 크게 벗어나면 residual 자체가 왜곡되어 보정 성능이 제한될 수 있다. 둘째, validation set이 105개뿐이므로 split에 따라 metric 변동이 발생할 수 있다. 셋째, 본 프로젝트에서는 attention weight를 별도로 시각화하지 않았으므로 “어떤 기지국을 실제로 신뢰했는가”를 정량적으로 증명하지는 못했다. 넷째, WLS trilateration, robust least squares, Kalman filter와의 직접 비교는 수행하지 않았다.
+
+향후에는 weighted centroid 대신 WLS 기반 초기 추정기를 사용하고, residual channel 제거 ablation, distance-only Transformer, MLP residual model을 추가 비교할 수 있다. 또한 여러 random seed에 대한 반복 검증을 수행하면 validation metric의 신뢰도를 더 높일 수 있다. 이동 궤적 데이터가 주어진다면 Kalman filter 또는 temporal Transformer와 결합하여 시간적 연속성을 반영하는 방향으로 확장할 수 있다.
+
+## 5. Reference
+
+[1] H. Liu, H. Darabi, P. Banerjee, and J. Liu, “Survey of Wireless Indoor Positioning Techniques and Systems,” IEEE Transactions on Systems, Man, and Cybernetics, Part C, vol. 37, no. 6, pp. 1067–1080, 2007.
+
+[2] S. Gezici, Z. Tian, G. B. Giannakis, H. Kobayashi, A. F. Molisch, H. V. Poor, and Z. Sahinoglu, “Localization via Ultra-Wideband Radios: A Look at Positioning Aspects for Future Sensor Networks,” IEEE Signal Processing Magazine, vol. 22, no. 4, pp. 70–84, 2005.
+
+[3] P. J. Rousseeuw and C. Croux, “Alternatives to the Median Absolute Deviation,” Journal of the American Statistical Association, vol. 88, no. 424, pp. 1273–1283, 1993.
+
+[4] A. Vaswani et al., “Attention Is All You Need,” Advances in Neural Information Processing Systems, 2017.
+
+[5] M. Raissi, P. Perdikaris, and G. E. Karniadakis, “Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations,” Journal of Computational Physics, vol. 378, pp. 686–707, 2019.
