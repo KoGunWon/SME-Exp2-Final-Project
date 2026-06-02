@@ -465,11 +465,11 @@ Low LR 실험은 학습률 선택의 민감도를 확인하기 위한 것이다.
 
 | 평가 지표 | All-data Baseline | All-data GERT final | 개선율 |
 |---|---:|---:|---:|
-| Mean error | 23.35 m | 6.84 m | 70.7% |
-| Median error | 22.74 m | 5.84 m | 74.3% |
-| RMSE | 25.82 m | 8.22 m | 68.2% |
-| P90 error | 38.18 m | 12.25 m | 67.9% |
-| Max error | 56.38 m | 32.86 m | 41.7% |
+| Mean error | 23.35 m | 7.06 m | 69.8% |
+| Median error | 22.74 m | 6.16 m | 72.9% |
+| RMSE | 25.82 m | 8.55 m | 66.9% |
+| P90 error | 38.18 m | 12.42 m | 67.5% |
+| Max error | 56.38 m | 33.86 m | 39.9% |
 
 이 sanity check는 제출용 model.pt가 단순히 baseline을 반환하는 것이 아니라 실제로 residual 보정을 수행하고 있음을 보여준다. 다만 이 값은 같은 700개 데이터에서 계산되었으므로 validation 결과보다 더 좋게 나오는 것이 자연스럽다. 따라서 본 보고서의 주요 성능 주장은 validation 결과를 기준으로 한다.
 
